@@ -1,0 +1,11 @@
+{
+  "name": "@getsafle/vault-cosmos-controller",
+  "version": "1.0.0",
+  "description": "Cosmos controller for Safle Vault",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT"
+}
