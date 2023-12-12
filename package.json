@@ -7,5 +7,10 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@cosmjs/crypto": "^0.32.1",
+    "@cosmjs/proto-signing": "^0.32.1",
+    "obs-store": "^4.0.3"
+  }
 }
