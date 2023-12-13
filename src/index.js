@@ -1,11 +1,12 @@
 const { EventEmitter } = require('events')
 const ObservableStore = require('obs-store')
 const { prefix } = require('./config/index')
-const { DirectSecp256k1HdWallet } = require('@cosmjs/proto-signing')
+const { makeSignDoc ,DirectSecp256k1HdWallet } = require('@cosmjs/proto-signing')
 const crypto_1 = require("@cosmjs/crypto");
 const encoding_1 = require("@cosmjs/encoding");
 const amino_1 = require("@cosmjs/amino");
-
+const { IndexedTx, StargateClient, SigningStargateClient } =  require("@cosmjs/stargate")
+const tx_3 = require("cosmjs-types/cosmos/tx/v1beta1/tx");
 
 class KeyringController extends EventEmitter {
 
@@ -65,6 +66,56 @@ class KeyringController extends EventEmitter {
         const address = (0, encoding_1.toBech32)(prefix, (0, amino_1.rawSecp256k1PubkeyToRawAddress)(publicKey));
         this.importedWallets.push(address);
         return address
+    }
+    
+    async signTransaction(transaction, rpcUrl) {
+        const { wallet } = this.store.getState();
+        const { from, to, amount, fee} = transaction
+        const signingClient = await SigningStargateClient.connectWithSigner(rpcUrl, wallet);
+
+        const sendMsg = {
+            typeUrl: "/cosmos.bank.v1beta1.MsgSend",
+            value: {
+                fromAddress: from,
+                toAddress: to,
+                amount: [...amount],
+            },
+        };
+
+        const txRaw = await signingClient.sign(from, [sendMsg], fee, "sign sending uatom");
+        console.log("signedTx = ", txRaw);
+        return txRaw
+
+    }
+
+    async sendTransaction(rawTx, rpcUrl) {
+        const { wallet } = this.store.getState();
+        const signingClient = await SigningStargateClient.connectWithSigner(rpcUrl, wallet);
+        
+        const txBytes = tx_3.TxRaw.encode(rawTx).finish();
+        console.log("txBytes = ", txBytes);
+
+        const response = signingClient.broadcastTx(txBytes);
+        return response
+
+    }
+
+    async getFees(transaction, rpcUrl) {
+        const { wallet } = this.store.getState();
+        const { from, to, amount, fee} = transaction
+        const sendMsg = {
+            typeUrl: "/cosmos.bank.v1beta1.MsgSend",
+            value: {
+                fromAddress: from,
+                toAddress: to,
+                amount: [...amount],
+            },
+        };
+
+        let memo = "sign sending uatom"
+        const signingClient = await SigningStargateClient.connectWithSigner(rpcUrl, wallet);
+        const gasEstimation = await signingClient.simulate(from, [sendMsg], memo);
+        return gasEstimation
     }
 
     updatePersistentStore(obj) {

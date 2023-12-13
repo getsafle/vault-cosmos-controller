@@ -7,3 +7,5 @@
 - Added method to export the private key of an address
 - Added importWallet() to import account using privateKey.
 - Added getBalance() method
+- Added sign transactions and send transactions to the wallet
+- Added gas estimation functionality
