@@ -74,4 +74,10 @@ class KeyringController extends EventEmitter {
 
 }
 
-module.exports = { KeyringController }
+const getBalance = async (address, rpc) => {
+    const client = await StargateClient.connect(rpc)
+    const balances = await client.getAllBalances(address) // denom: uatom
+    return balances[0].amount
+}
+
+module.exports = { KeyringController, getBalance }
