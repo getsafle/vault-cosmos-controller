@@ -7,6 +7,10 @@ const encoding_1 = require("@cosmjs/encoding");
 const amino_1 = require("@cosmjs/amino");
 const { IndexedTx, StargateClient, SigningStargateClient } =  require("@cosmjs/stargate")
 const tx_3 = require("cosmjs-types/cosmos/tx/v1beta1/tx");
+const { GasPrice } = require("@cosmjs/stargate")
+const axios = require("axios");
+const { COSMOS_DIRECTORY_URL } = require('./constants/index')
+const helper = require('./helper/getMessages')
 
 class KeyringController extends EventEmitter {
 
@@ -70,19 +74,12 @@ class KeyringController extends EventEmitter {
     
     async signTransaction(transaction, rpcUrl) {
         const { wallet } = this.store.getState();
-        const { from, to, amount, fee} = transaction
+        const { from, fee, memo} = transaction
         const signingClient = await SigningStargateClient.connectWithSigner(rpcUrl, wallet);
 
-        const sendMsg = {
-            typeUrl: "/cosmos.bank.v1beta1.MsgSend",
-            value: {
-                fromAddress: from,
-                toAddress: to,
-                amount: [...amount],
-            },
-        };
+        const sendMsg = helper.getMessages(transaction)
 
-        const txRaw = await signingClient.sign(from, [sendMsg], fee, "sign sending uatom");
+        const txRaw = await signingClient.sign(from, sendMsg, fee, memo);
         console.log("signedTx = ", txRaw);
         return txRaw
 
@@ -94,28 +91,43 @@ class KeyringController extends EventEmitter {
         
         const txBytes = tx_3.TxRaw.encode(rawTx).finish();
         console.log("txBytes = ", txBytes);
+        try{
+            const response = await signingClient.broadcastTx(txBytes);
+        }
+        catch(err) {
+            console.log("err = ", err);
+        }
 
-        const response = signingClient.broadcastTx(txBytes);
         return response
 
     }
 
-    async getFees(transaction, rpcUrl) {
+    async getFees(transaction, rpcUrl, chain_name) {
         const { wallet } = this.store.getState();
-        const { from, to, amount, fee} = transaction
-        const sendMsg = {
-            typeUrl: "/cosmos.bank.v1beta1.MsgSend",
-            value: {
-                fromAddress: from,
-                toAddress: to,
-                amount: [...amount],
-            },
-        };
+        const { from, to, amount, memo} = transaction
 
-        let memo = "sign sending uatom"
+        const sendMsg = helper.getMessages(transaction)
+
         const signingClient = await SigningStargateClient.connectWithSigner(rpcUrl, wallet);
-        const gasEstimation = await signingClient.simulate(from, [sendMsg], memo);
-        return gasEstimation
+        const gasEstimation = await signingClient.simulate(from, sendMsg, memo);
+        // Starting with Cosmos SDK 0.47, we see many cases in which 1.3 is not enough anymore
+        // E.g. https://github.com/cosmos/cosmos-sdk/issues/16020
+        const multiplier = 1.4;
+        let gasLimit = (Math.round(gasEstimation * multiplier));
+
+        const URL = COSMOS_DIRECTORY_URL + `${chain_name}/`
+        const response = await axios({
+            url : `${URL}`,
+            method: 'GET',
+        });
+
+        let fees = {
+            "slow" : response.data.chain.fees.fee_tokens[0].low_gas_price,
+            "standard" : response.data.chain.fees.fee_tokens[0].average_gas_price,
+            "fast" : response.data.chain.fees.fee_tokens[0].high_gas_price
+        }
+
+        return { gasLimit, fees }
     }
 
     updatePersistentStore(obj) {
@@ -128,7 +140,7 @@ class KeyringController extends EventEmitter {
 const getBalance = async (address, rpc) => {
     const client = await StargateClient.connect(rpc)
     const balances = await client.getAllBalances(address) // denom: uatom
-    return balances[0].amount
+    return balances[0]?.amount
 }
 
 module.exports = { KeyringController, getBalance }

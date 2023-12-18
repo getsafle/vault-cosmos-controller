@@ -9,3 +9,5 @@
 - Added getBalance() method
 - Added sign transactions and send transactions to the wallet
 - Added gas estimation functionality
+- Added gas prices for high, low and standard speed of transaction 
+- Added transaction types like send, multi_send and delegate
